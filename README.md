@@ -3,4 +3,4 @@ A project solution for a hackathon. My project contributes to solving the proble
 
 
 ## Моя идея для проекта:
-> 
+> Проект тг бот и сайт с данными о климате и расспознованием качества воздуха.
