@@ -1,35 +1,69 @@
-!pip3 install bs4
-
------------------
-
+import telebot
 from bs4 import BeautifulSoup as bs
 import requests
 
------------------
+# Токен бота нужно заменить на свой!
+TOKEN = 'TOKEN'
+bot = telebot.TeleBot(TOKEN)
 
-priroda_url = "https://new-science.ru/category/priroda/"
-moya_planeta_url = "https://new-science.ru/category/moya-planeta/"
+def get_news():
+    """Функция возвращает список строк с новостями."""
+    news_list = []
+    
+    categories = [
+        "https://new-science.ru/category/priroda/",
+        "https://new-science.ru/category/moya-planeta/"
+    ]
 
-for i in range(1, 31):
-  priroda_page_url = priroda_url + str(i) + '/'
-  priroda_response = requests.get(priroda_page_url)
+    for category_url in categories:
+        response = requests.get(category_url)
+        
+        if not response.ok:
+            continue
 
-  priroda_bs = bs(priroda_response.text,"lxml")
+        soup = bs(response.text, 'lxml')
+
+        # Берём только первые 5 карточек с каждой страницы
+        for item in soup.select('.post-item')[:5]:
+            a_title = item.find('h2', class_='post-title').find('a')
+            
+            # Пропускаем элемент, если это не ссылка или у неё нет href
+            if a_title is None or not a_title.has_attr('href'):
+                continue
+
+            title = a_title.text.strip()
+            url = f"{a_title['href']}"
+
+            # Формируем строку для Telegram: [Заголовок](URL)
+            news_list.append(f"<b>{title} ссылка: {url}</b>")
+
+    return news_list[:10]  # Оставляем максимум 10 новостей
 
 
-for i in range(1, 31):
-  moya_planeta_page_url = moya_planeta_url + str(i) + '/'
-  moya_planeta_response = requests.get(moya_planeta_page_url)
+@bot.message_handler(commands=['start'])
+def start_bot(message):
+    bot.reply_to(
+        message,
+        'Хей! Привет! Я бот! Пиши мне /news! Я знаю много новостей с сайта https://new-science.ru.'
+    )
 
------------------
+@bot.message_handler(commands=['news'])
+def send_random_mem(message):
+    # Получаем список новостей от функции
+    news_items = get_news()
 
-# Здесь мы ищем все элементы <h2 class="post-title"> на странице
-# и сохраняем их в переменной temp. Это все заголовки новостей на странице, которые мы хотим собрать.
-temp = bs.find_all('h2', 'post-title')
-print(temp)
+    # Если новостей нет, отправим ошибку
+    if len(news_items) == 0:
+        bot.send_message(message.chat.id, "Не удалось загрузить новости :(")
+        return
 
------------------
+    # Собираем все новости в один длинный текст через перенос строки
+    news_text = "\n\n".join(news_items)
 
-print(f"""h2 содержит внутри себя тег <a> c ссылкой и сам текст \n
-      текст самого первого заголовка: {temp[0].text}. \n
-      Ссылка, которая хранится внутри: {temp[0].find('a').get('href')}""")
+    # Отправляем сообщение с разметкой HTML
+    bot.send_message(message.chat.id, news_text, parse_mode="HTML")
+
+# Запуск бота
+if __name__ == "__main__":
+    print("Бот запущен!")
+    bot.polling(non_stop=True)
